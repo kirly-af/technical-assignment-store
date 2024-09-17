@@ -1,4 +1,5 @@
 import { JSONArray, JSONObject, JSONPrimitive } from "./json-types";
+import "reflect-metadata";
 
 export type Permission = "r" | "w" | "rw" | "none";
 
@@ -20,17 +21,16 @@ export interface IStore {
   entries(): JSONObject;
 }
 
+const restrictMetadataKey = Symbol("format");
+
 export function Restrict(...params: unknown[]): any {
-  // const [ restrictedPermissions ] = params;
-  // return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-  //   target.permissions = target.permissions ?? {};
-  //   target.permissions[propertyKey] = restrictedPermissions ?? "none";
-  // };
+  const [ restrictedPermissions ] = params;
+  return Reflect.metadata(restrictMetadataKey, restrictedPermissions);
 }
 
-interface StoragePermissions {
-  [key: string]: Permission
-}
+const getRestrictions = (target: any, propertyKey: string) => {
+  return Reflect.getMetadata(restrictMetadataKey, target, propertyKey);
+};
 
 export class StoreActionException extends Error {
   constructor(action: string, key: string) {
@@ -44,12 +44,12 @@ const pathSeparator = ":";
 
 export class Store implements IStore {
   [key: string]: StoreValue | Function;
-  permissions: StoragePermissions = {};
   defaultPolicy: Permission = "rw";
 
-  allowedToDoAction(key: string, permissionsForAction: Permission[]) {
-    const permission = this.permissions[key] ?? this.defaultPolicy;
-    return permissionsForAction.includes(permission);
+  allowedToDoAction(key: string, requiredPermissions: Permission[]) {
+    const restrictions = getRestrictions(this, key);
+    const permission = restrictions?.[key] ?? this.defaultPolicy;
+    return requiredPermissions.includes(permission);
   }
 
   allowedToRead(key: string): boolean {
