@@ -23,23 +23,44 @@ export interface IStore {
 export function Restrict(...params: unknown[]): any {
 }
 
+interface Storage { [key: string]: StoreValue }
+
 export class Store implements IStore {
+  _entries: Storage = {};
   defaultPolicy: Permission = "rw";
 
   allowedToRead(key: string): boolean {
-    throw new Error("Method not implemented.");
+    return true;
   }
 
   allowedToWrite(key: string): boolean {
-    throw new Error("Method not implemented.");
+    return true;
   }
 
   read(path: string): StoreResult {
-    throw new Error("Method not implemented.");
+    const value: StoreValue = this._entries[path];
+    const isPrimitive = typeof value !== "object"
+    const isNull = value === null;
+    const isCallback = typeof value === "function";
+
+    if (isCallback) {
+      return value();
+    }
+
+    if (isNull) {
+      return null;
+    }
+
+    if (isPrimitive) {
+      return value;
+    }
+
+    return true;
   }
 
   write(path: string, value: StoreValue): StoreValue {
-    throw new Error("Method not implemented.");
+    this._entries[path] = value;
+    return value;
   }
 
   writeEntries(entries: JSONObject): void {
