@@ -48,7 +48,7 @@ export class Store implements IStore {
 
   allowedToDoAction(key: string, requiredPermissions: Permission[]) {
     const restrictions = getRestrictions(this, key);
-    const permission = restrictions?.[key] ?? this.defaultPolicy;
+    const permission = restrictions ?? this.defaultPolicy;
     return requiredPermissions.includes(permission);
   }
 
@@ -104,18 +104,34 @@ export class Store implements IStore {
 
     const nestedPath = nestedPathSegments.join(pathSeparator);
     if (nestedPath) {
-      const target = this[key] ?? new Store();
+      const isStore = !(this[key] instanceof Store);
+      if (isStore) {
+        this[key] = new Store();
+      }
+      const target = this[key];
       if (target instanceof Store) {
-        target.write(nestedPath, value);
+        return target.write(nestedPath, value);
       }
     }
 
-    this[path] = value;
+    this[key] = value;
     return value;
   }
 
   writeEntries(entries: JSONObject): void {
-    throw new Error("Method not implemented.");
+    const getInternalPaths = (obj: JSONObject, prefix: string = ""): any => {
+      return Object.keys(obj).map((key: string) => {
+        const value = obj[key];
+        if (value === null) {
+          return this.write(`${prefix}${key}`, null);
+        }
+        if (typeof value === 'object') {
+          return getInternalPaths(value as JSONObject, `${prefix}${key}${pathSeparator}`).flat();
+        }
+        return this.write(`${prefix}${key}`, obj[key]);
+      });
+    }
+    getInternalPaths(entries);
   }
 
   entries(): JSONObject {
