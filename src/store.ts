@@ -21,29 +21,63 @@ export interface IStore {
 }
 
 export function Restrict(...params: unknown[]): any {
+  // const [ restrictedPermissions ] = params;
+  // return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  //   target.permissions = target.permissions ?? {};
+  //   target.permissions[propertyKey] = restrictedPermissions ?? "none";
+  // };
 }
 
-interface Storage { [key: string]: StoreValue }
+interface StorageEntry {
+  value: StoreValue,
+  permission?: Permission
+}
+
+interface StoragePermissions {
+  [key: string]: Permission
+}
+
+export class StoreActionException extends Error {
+  constructor(action: string, key: string) {
+    super(`You do not have rights to ${action} key ${key}`);
+  }
+}
+
+const readPermissions: Permission[] = ["rw", "r"];
+const writePermissions: Permission[] = ["rw", "w"];
 
 export class Store implements IStore {
-  _entries: Storage = {};
+  [key: string]: StoreValue | Function;
+  permissions: StoragePermissions = {};
   defaultPolicy: Permission = "rw";
 
+  getEntry(path: string) {
+    return this[path];
+  }
+
+  allowedToDoAction(key: string, permissionsForAction: Permission[]) {
+    const permission = this.permissions[key] ?? this.defaultPolicy;
+    return permissionsForAction.includes(permission);
+  }
+
   allowedToRead(key: string): boolean {
-    return true;
+    return this.allowedToDoAction(key, readPermissions);
   }
 
   allowedToWrite(key: string): boolean {
-    return true;
+    return this.allowedToDoAction(key, writePermissions);
   }
 
   read(path: string): StoreResult {
-    const value: StoreValue = this._entries[path];
+    if (!this.allowedToRead(path)) {
+      throw new StoreActionException("read", path)
+    }
+    const value = this[path];
     const isPrimitive = typeof value !== "object"
     const isNull = value === null;
-    const isCallback = typeof value === "function";
+    const isFactory = typeof value === "function";
 
-    if (isCallback) {
+    if (isFactory) {
       return value();
     }
 
@@ -59,7 +93,10 @@ export class Store implements IStore {
   }
 
   write(path: string, value: StoreValue): StoreValue {
-    this._entries[path] = value;
+    if (!this.allowedToWrite(path)) {
+      throw new StoreActionException("write", path)
+    }
+    this[path] = value;
     return value;
   }
 
