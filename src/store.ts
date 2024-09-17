@@ -28,11 +28,6 @@ export function Restrict(...params: unknown[]): any {
   // };
 }
 
-interface StorageEntry {
-  value: StoreValue,
-  permission?: Permission
-}
-
 interface StoragePermissions {
   [key: string]: Permission
 }
@@ -45,15 +40,12 @@ export class StoreActionException extends Error {
 
 const readPermissions: Permission[] = ["rw", "r"];
 const writePermissions: Permission[] = ["rw", "w"];
+const pathSeparator = ":";
 
 export class Store implements IStore {
   [key: string]: StoreValue | Function;
   permissions: StoragePermissions = {};
   defaultPolicy: Permission = "rw";
-
-  getEntry(path: string) {
-    return this[path];
-  }
 
   allowedToDoAction(key: string, permissionsForAction: Permission[]) {
     const permission = this.permissions[key] ?? this.defaultPolicy;
@@ -69,9 +61,20 @@ export class Store implements IStore {
   }
 
   read(path: string): StoreResult {
-    if (!this.allowedToRead(path)) {
-      throw new StoreActionException("read", path)
+    const [ key, ...nestedPathSegments ] = path.split(pathSeparator);
+
+    if (!this.allowedToRead(key)) {
+      throw new StoreActionException("read", key)
     }
+
+    const nestedPath = nestedPathSegments.join(pathSeparator);
+    if (nestedPath) {
+      const target = this[key] ?? new Store();
+      if (target instanceof Store) {
+        return target.read(nestedPath);
+      }
+    }
+
     const value = this[path];
     const isPrimitive = typeof value !== "object"
     const isNull = value === null;
@@ -93,9 +96,20 @@ export class Store implements IStore {
   }
 
   write(path: string, value: StoreValue): StoreValue {
-    if (!this.allowedToWrite(path)) {
-      throw new StoreActionException("write", path)
+    const [ key, ...nestedPathSegments ] = path.split(pathSeparator);
+
+    if (!this.allowedToWrite(key)) {
+      throw new StoreActionException("write", key);
     }
+
+    const nestedPath = nestedPathSegments.join(pathSeparator);
+    if (nestedPath) {
+      const target = this[key] ?? new Store();
+      if (target instanceof Store) {
+        target.write(nestedPath, value);
+      }
+    }
+
     this[path] = value;
     return value;
   }
