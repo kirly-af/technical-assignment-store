@@ -98,40 +98,43 @@ export class Store implements IStore {
   write(path: string, value: StoreValue): StoreValue {
     const [ key, ...nestedPathSegments ] = path.split(pathSeparator);
 
-    if (!this.allowedToWrite(key)) {
-      throw new StoreActionException("write", key);
-    }
-
     const nestedPath = nestedPathSegments.join(pathSeparator);
     if (nestedPath) {
-      const isStore = !(this[key] instanceof Store);
-      if (isStore) {
+      const isStore = this[key] instanceof Store;
+      if (!isStore) {
         this[key] = new Store();
       }
+
       const target = this[key];
       if (target instanceof Store) {
+        if (!this.allowedToRead(key)) {
+          throw new StoreActionException("read", key);
+        }
         return target.write(nestedPath, value);
       }
     }
 
+    if (!this.allowedToWrite(key)) {
+      throw new StoreActionException("write", key);
+    }
     this[key] = value;
     return value;
   }
 
   writeEntries(entries: JSONObject): void {
-    const getInternalPaths = (obj: JSONObject, prefix: string = ""): any => {
+    const writeNestedEntries = (obj: JSONObject, prefix: string = ""): any => {
       return Object.keys(obj).map((key: string) => {
         const value = obj[key];
         if (value === null) {
           return this.write(`${prefix}${key}`, null);
         }
         if (typeof value === 'object') {
-          return getInternalPaths(value as JSONObject, `${prefix}${key}${pathSeparator}`).flat();
+          return writeNestedEntries(value as JSONObject, `${prefix}${key}${pathSeparator}`).flat();
         }
         return this.write(`${prefix}${key}`, obj[key]);
       });
     }
-    getInternalPaths(entries);
+    writeNestedEntries(entries);
   }
 
   entries(): JSONObject {
