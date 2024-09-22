@@ -1,4 +1,4 @@
-import { JSONArray, JSONObject, JSONPrimitive } from "./json-types";
+import { JSONArray, JSONObject, JSONPrimitive, JSONValue } from "./json-types";
 import "reflect-metadata";
 
 export type Permission = "r" | "w" | "rw" | "none";
@@ -62,29 +62,25 @@ export class Store implements IStore {
 
   read(path: string): StoreResult {
     const [ key, ...nestedPathSegments ] = path.split(pathSeparator);
+    const nestedPath = nestedPathSegments.join(pathSeparator);
 
     if (!this.allowedToRead(key)) {
       throw new StoreActionException("read", key)
     }
 
-    const nestedPath = nestedPathSegments.join(pathSeparator);
-    if (nestedPath) {
-      const target = this[key] ?? new Store();
-      if (target instanceof Store) {
-        return target.read(nestedPath);
-      } else if (typeof target === "function") {
-        const store = target();
-        return store.read(nestedPath);
-      }
-    }
-
-    const value = this[path];
+    const value = this[key];
     const isPrimitive = typeof value !== "object"
     const isNull = value === null;
     const isFactory = typeof value === "function";
 
     if (isFactory) {
-      return value();
+      const store = value();
+
+      if (nestedPath) {
+        return store.read(nestedPath);
+      }
+
+      return store;
     }
 
     if (isNull) {
@@ -93,6 +89,13 @@ export class Store implements IStore {
 
     if (isPrimitive) {
       return value;
+    }
+
+    if (nestedPath) {
+      const target = this[key] ?? new Store();
+      if (target instanceof Store) {
+        return target.read(nestedPath);
+      }
     }
 
     return true;
@@ -141,6 +144,13 @@ export class Store implements IStore {
   }
 
   entries(): JSONObject {
-    throw new Error("Method not implemented.");
+    return Object.keys(this).reduce((accumulator: JSONObject, key: string) => {
+      accumulator = accumulator ?? {};
+      const isJsonValue = typeof this[key] !== "number" && typeof this[key] !== "undefined";
+      if (isJsonValue && this.allowedToRead(key)) {
+        accumulator[key] = this[key] as JSONValue;
+      }
+      return accumulator;
+    }, {});
   }
 }
