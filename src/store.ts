@@ -21,7 +21,7 @@ export interface IStore {
   entries(): JSONObject;
 }
 
-const restrictMetadataKey = Symbol("format");
+const restrictMetadataKey = Symbol("restrictions");
 
 export function Restrict(...params: unknown[]): any {
   const [ restrictedPermissions ] = params;
