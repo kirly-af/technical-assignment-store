@@ -72,6 +72,9 @@ export class Store implements IStore {
       const target = this[key] ?? new Store();
       if (target instanceof Store) {
         return target.read(nestedPath);
+      } else if (typeof target === "function") {
+        const store = target();
+        return store.read(nestedPath);
       }
     }
 
