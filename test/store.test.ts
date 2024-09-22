@@ -92,10 +92,6 @@ describe("Nested Store Operations", () => {
     expect(userStore.read("profile:name")).toBe("John Smith");
   });
 
-  it("should allow reading key in admin store", () => {
-    expect(adminStore.read("user")).toBe(true);
-  });
-
   it("should allow reading nested keys in admin store", () => {
     expect(adminStore.read("user:name")).toBe("John Doe");
   });

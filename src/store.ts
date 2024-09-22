@@ -72,6 +72,7 @@ export class Store implements IStore {
     const isPrimitive = typeof value !== "object"
     const isNull = value === null;
     const isFactory = typeof value === "function";
+    const isStore = value instanceof Store;
 
     if (isFactory) {
       const store = value();
@@ -98,6 +99,10 @@ export class Store implements IStore {
       }
     }
 
+    if (isStore) {
+      return value;
+    }
+
     return true;
   }
 
@@ -120,6 +125,19 @@ export class Store implements IStore {
       }
     }
 
+    if (typeof value === "object") {
+      const isStore = this[key] instanceof Store;
+      if (!isStore) {
+        this[key] = new Store();
+      }
+
+      const target = this[key];
+      if (target instanceof Store) {
+        target.writeEntries(value as JSONObject);
+        return target;
+      }
+    }
+
     if (!this.allowedToWrite(key)) {
       throw new StoreActionException("write", key);
     }
@@ -128,16 +146,17 @@ export class Store implements IStore {
   }
 
   writeEntries(entries: JSONObject): void {
-    const writeNestedEntries = (obj: JSONObject, prefix: string = ""): any => {
+    const writeNestedEntries = (obj: JSONObject, pathPrefix: string = ""): any => {
       return Object.keys(obj).map((key: string) => {
         const value = obj[key];
+        const path = `${pathPrefix}${key}`;
         if (value === null) {
-          return this.write(`${prefix}${key}`, null);
+          return this.write(path, null);
         }
         if (typeof value === 'object') {
-          return writeNestedEntries(value as JSONObject, `${prefix}${key}${pathSeparator}`).flat();
+          return writeNestedEntries(value as JSONObject, `${path}${pathSeparator}`).flat();
         }
-        return this.write(`${prefix}${key}`, obj[key]);
+        return this.write(path, obj[key]);
       });
     }
     writeNestedEntries(entries);
